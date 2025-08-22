@@ -10,7 +10,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from cryptography.fernet import Fernet
@@ -157,15 +157,15 @@ class MongoDBCredentialService:
 
         return default
 
-    async def set_credential(self, key: str, value: str, encrypt: bool = True, category: str | None = None, description: str | None = None) -> bool:
+    async def set_credential(self, key: str, value: str, is_encrypted: bool = True, category: str | None = None, description: str | None = None) -> bool:
         """Store a credential with optional encryption."""
         try:
             await self._ensure_credentials_collection()
             db = self._get_mongodb_db()
 
-            current_time = datetime.utcnow()
+            current_time = datetime.now(UTC)
 
-            if encrypt:
+            if is_encrypted:
                 encrypted_value = self._encrypt_value(value)
                 credential_doc = {
                     "key": key,
@@ -310,6 +310,62 @@ class MongoDBCredentialService:
 
         except Exception as e:
             logger.error(f"Failed to list credentials: {e}")
+            return []
+
+    async def list_all_credentials(self) -> list[CredentialItem]:
+        """Get all credentials as a list of CredentialItem objects (for Settings UI)."""
+        try:
+            db = self._get_mongodb_db()
+            cursor = db.credentials.find()
+            credentials = await cursor.to_list(length=None)
+
+            result = []
+            for cred in credentials:
+                # For encrypted values, decrypt them for UI display
+                if cred.get("is_encrypted", False) and cred.get("encrypted_value"):
+                    try:
+                        decrypted_value = self._decrypt_value(cred["encrypted_value"])
+                        item = CredentialItem(
+                            key=cred["key"],
+                            value=decrypted_value,
+                            encrypted_value=None,  # Don't expose encrypted value
+                            is_encrypted=cred.get("is_encrypted", False),
+                            category=cred.get("category"),
+                            description=cred.get("description"),
+                            created_at=cred.get("created_at"),
+                            updated_at=cred.get("updated_at"),
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt credential {cred['key']}: {e}")
+                        # If decryption fails, show placeholder
+                        item = CredentialItem(
+                            key=cred["key"],
+                            value="[DECRYPTION ERROR]",
+                            encrypted_value=None,
+                            is_encrypted=cred.get("is_encrypted", False),
+                            category=cred.get("category"),
+                            description=cred.get("description"),
+                            created_at=cred.get("created_at"),
+                            updated_at=cred.get("updated_at"),
+                        )
+                else:
+                    # Plain text values
+                    item = CredentialItem(
+                        key=cred["key"],
+                        value=cred.get("value"),
+                        encrypted_value=None,
+                        is_encrypted=cred.get("is_encrypted", False),
+                        category=cred.get("category"),
+                        description=cred.get("description"),
+                        created_at=cred.get("created_at"),
+                        updated_at=cred.get("updated_at"),
+                    )
+                result.append(item)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error listing credentials: {e}")
             return []
 
     def _validate_openai_key(self, api_key: str) -> tuple[bool, str]:

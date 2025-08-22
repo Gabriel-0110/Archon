@@ -10,7 +10,7 @@ from typing import Any
 from crawl4ai import CacheMode, CrawlerRunConfig, MemoryAdaptiveDispatcher
 
 from ....config.logfire_config import get_logger
-from ...credential_service import credential_service
+from ...mongodb_credential_service import mongodb_credential_service as credential_service
 
 logger = get_logger(__name__)
 

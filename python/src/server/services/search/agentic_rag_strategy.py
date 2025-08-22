@@ -39,7 +39,7 @@ class AgenticRAGStrategy:
     def is_enabled(self) -> bool:
         """Check if agentic RAG is enabled via configuration."""
         try:
-            from ..credential_service import credential_service
+            from ..mongodb_credential_service import mongodb_credential_service as credential_service
 
             if hasattr(credential_service, "_cache") and credential_service._cache_initialized:
                 cached_value = credential_service._cache.get("USE_AGENTIC_RAG")

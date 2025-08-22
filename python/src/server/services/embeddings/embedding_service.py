@@ -12,7 +12,7 @@ from typing import Any
 import openai
 
 from ...config.logfire_config import safe_span, search_logger
-from ..credential_service import credential_service
+from ..mongodb_credential_service import mongodb_credential_service as credential_service
 from ..llm_provider_service import get_embedding_model, get_llm_client
 from ..threading_service import get_threading_service
 from .embedding_exceptions import (

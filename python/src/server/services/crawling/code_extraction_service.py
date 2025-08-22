@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ...config.logfire_config import safe_logfire_error, safe_logfire_info
-from ...services.credential_service import credential_service
+from ...services.mongodb_credential_service import mongodb_credential_service as credential_service
 from ..storage import add_code_examples_to_supabase, generate_code_summaries_batch
 
 

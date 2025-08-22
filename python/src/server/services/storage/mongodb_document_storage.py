@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from bson import ObjectId
 
 from ...config.logfire_config import safe_span, search_logger
-from ..credential_service import credential_service
+from ..mongodb_credential_service import mongodb_credential_service as credential_service
 from ..embeddings.contextual_embedding_service import generate_contextual_embeddings_batch
 from ..embeddings.embedding_service import create_embeddings_batch
 

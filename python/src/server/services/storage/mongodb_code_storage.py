@@ -23,7 +23,7 @@ def _get_model_choice() -> str:
     """Get MODEL_CHOICE with direct fallback."""
     try:
         # Direct cache/env fallback
-        from ..credential_service import credential_service
+        from ..mongodb_credential_service import mongodb_credential_service as credential_service
 
         if credential_service._cache_initialized and "MODEL_CHOICE" in credential_service._cache:
             model = credential_service._cache["MODEL_CHOICE"]
@@ -411,7 +411,7 @@ async def generate_code_summaries_batch(
     # Get max_workers from settings if not provided
     if max_workers is None:
         try:
-            from ...services.credential_service import credential_service
+            from ...services.mongodb_credential_service import mongodb_credential_service as credential_service
             max_workers = int(await credential_service.get_credential("CODE_SUMMARIES_MAX_WORKERS", "3"))
         except Exception:
             max_workers = 3

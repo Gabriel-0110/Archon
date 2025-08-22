@@ -61,7 +61,7 @@ class RAGService:
     def get_setting(self, key: str, default: str = "false") -> str:
         """Get a setting from the credential service or fall back to environment variable."""
         try:
-            from ..credential_service import credential_service
+            from ..mongodb_credential_service import mongodb_credential_service as credential_service
 
             if hasattr(credential_service, "_cache") and credential_service._cache_initialized:
                 cached_value = credential_service._cache.get(key)

@@ -21,7 +21,7 @@ def _get_model_choice() -> str:
     """Get MODEL_CHOICE with direct fallback."""
     try:
         # Direct cache/env fallback
-        from .credential_service import credential_service
+        from .mongodb_credential_service import mongodb_credential_service as credential_service
 
         if credential_service._cache_initialized and "MODEL_CHOICE" in credential_service._cache:
             model = credential_service._cache["MODEL_CHOICE"]
