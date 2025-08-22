@@ -110,7 +110,7 @@ Archon V2 Alpha is a microservices-based knowledge management system with MCP (M
 - **Main Server (port 8181)**: FastAPI + Socket.IO for real-time updates
 - **MCP Server (port 8051)**: Lightweight HTTP-based MCP protocol server
 - **Agents Service (port 8052)**: PydanticAI agents for AI/ML operations
-- **Database**: Supabase (PostgreSQL + pgvector for embeddings)
+- **Database**: MongoDB (with Atlas Vector Search for embeddings)
 
 ## Development Commands
 
@@ -186,8 +186,18 @@ Real-time updates via Socket.IO on port 8181:
 Required in `.env`:
 
 ```bash
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your-service-key-here
+# MongoDB Configuration (choose one option)
+
+# Option 1: Connection String (recommended for Atlas)
+MONGODB_CONNECTION_STRING=mongodb+srv://user:pass@cluster.mongodb.net/archon
+
+# Option 2: Individual components (for self-hosted)
+MONGODB_HOST=localhost
+MONGODB_PORT=27017
+MONGODB_DATABASE=archon
+MONGODB_USERNAME=your-username
+MONGODB_PASSWORD=your-password
+MONGODB_TLS=false
 ```
 
 Optional:
@@ -218,13 +228,13 @@ LOG_LEVEL=INFO                         # DEBUG, INFO, WARNING, ERROR
 
 ## Database Schema
 
-Key tables in Supabase:
+Key collections in MongoDB:
 
 - `sources` - Crawled websites and uploaded documents
-- `documents` - Processed document chunks with embeddings
+- `documents` - Processed document chunks with embeddings (uses vector search)
 - `projects` - Project management (optional feature)
 - `tasks` - Task tracking linked to projects
-- `code_examples` - Extracted code snippets
+- `code_examples` - Extracted code snippets with language detection
 
 ## Common Development Tasks
 
@@ -247,7 +257,7 @@ Key tables in Supabase:
 1. Check MCP health: `curl http://localhost:8051/health`
 2. View MCP logs: `docker-compose logs archon-mcp`
 3. Test tool execution via UI MCP page
-4. Verify Supabase connection and credentials
+4. Verify MongoDB connection and credentials
 
 ## Code Quality Standards
 

@@ -9,12 +9,7 @@ from typing import Dict, Any, List, Optional, Callable
 from urllib.parse import urlparse
 
 from ...config.logfire_config import safe_logfire_info, safe_logfire_error
-from ..storage.storage_services import DocumentStorageService
-from ..storage.document_storage_service import add_documents_to_supabase
-from ..storage.code_storage_service import (
-    generate_code_summaries_batch,
-    add_code_examples_to_supabase
-)
+from ..storage import DocumentStorageService, add_documents_to_supabase, add_code_examples_to_supabase
 from ..source_management_service import update_source_info, extract_source_summary
 from .code_extraction_service import CodeExtractionService
 
@@ -24,16 +19,26 @@ class DocumentStorageOperations:
     Handles document storage operations for crawled content.
     """
     
-    def __init__(self, supabase_client):
+    def __init__(self, mongodb_db=None, supabase_client=None):
         """
         Initialize document storage operations.
         
         Args:
-            supabase_client: The Supabase client for database operations
+            mongodb_db: The MongoDB database instance
+            supabase_client: [Deprecated] For backward compatibility
         """
-        self.supabase_client = supabase_client
-        self.doc_storage_service = DocumentStorageService(supabase_client)
-        self.code_extraction_service = CodeExtractionService(supabase_client)
+        # For backward compatibility, accept either parameter
+        if supabase_client is not None:
+            # If old supabase_client is passed, get MongoDB client instead
+            from ...config.mongodb_config import get_mongodb_database
+            self.mongodb_db = get_mongodb_database()
+        else:
+            from ...config.mongodb_config import get_mongodb_database
+            self.mongodb_db = mongodb_db or get_mongodb_database()
+            
+        # Initialize services with MongoDB
+        self.doc_storage_service = DocumentStorageService(self.mongodb_db)
+        self.code_extraction_service = CodeExtractionService(self.mongodb_db)
     
     async def process_and_store_documents(
         self,

@@ -4,40 +4,29 @@ Client Manager Service
 Manages database and API client connections.
 """
 
-import os
-import re
-
-from supabase import Client, create_client
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ..config.logfire_config import search_logger
+from ..config.mongodb_config import get_mongodb_database, test_mongodb_connection
 
 
-def get_supabase_client() -> Client:
+async def get_mongodb_client() -> AsyncIOMotorDatabase:
     """
-    Get a Supabase client instance.
+    Get a MongoDB database instance.
 
     Returns:
-        Supabase client instance
+        MongoDB database instance
     """
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_KEY")
-
-    if not url or not key:
-        raise ValueError(
-            "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in environment variables"
-        )
-
     try:
-        # Let Supabase handle connection pooling internally
-        client = create_client(url, key)
-
-        # Extract project ID from URL for logging purposes only
-        match = re.match(r"https://([^.]+)\.supabase\.co", url)
-        if match:
-            project_id = match.group(1)
-            search_logger.info(f"Supabase client initialized - project_id={project_id}")
-
-        return client
+        db = get_mongodb_database()
+        
+        # Test connection
+        connection_ok = await test_mongodb_connection()
+        if not connection_ok:
+            raise ConnectionError("Failed to connect to MongoDB")
+        
+        search_logger.info("MongoDB client initialized successfully")
+        return db
     except Exception as e:
-        search_logger.error(f"Failed to create Supabase client: {e}")
+        search_logger.error(f"Failed to create MongoDB client: {e}")
         raise

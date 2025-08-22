@@ -18,19 +18,15 @@ from datetime import datetime
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from ..utils import get_supabase_client
-from ..services.storage import DocumentStorageService
-from ..services.search.rag_service import RAGService
+from ..config.mongodb_config import get_mongodb_database
+from ..services.storage.mongodb_storage_services import MongoDBDocumentStorageService
+from ..services.search.mongodb_rag_service import MongoDBRAGService
 from ..services.knowledge import KnowledgeItemService, DatabaseMetricsService
 from ..services.crawling import CrawlOrchestrationService
 from ..services.crawler_manager import get_crawler
 
 # Import unified logging
 from ..config.logfire_config import get_logger, safe_logfire_error, safe_logfire_info
-from ..services.crawler_manager import get_crawler
-from ..services.search.rag_service import RAGService
-from ..services.storage import DocumentStorageService
-from ..utils import get_supabase_client
 from ..utils.document_processing import extract_text_from_document
 
 # Get logger for this module
@@ -137,8 +133,8 @@ async def get_knowledge_items(
 ):
     """Get knowledge items with pagination and filtering."""
     try:
-        # Use KnowledgeItemService
-        service = KnowledgeItemService(get_supabase_client())
+        # Use KnowledgeItemService with MongoDB
+        service = KnowledgeItemService(get_mongodb_database())
         result = await service.list_items(
             page=page, per_page=per_page, knowledge_type=knowledge_type, search=search
         )
@@ -155,8 +151,8 @@ async def get_knowledge_items(
 async def update_knowledge_item(source_id: str, updates: dict):
     """Update a knowledge item's metadata."""
     try:
-        # Use KnowledgeItemService
-        service = KnowledgeItemService(get_supabase_client())
+        # Use KnowledgeItemService with MongoDB
+        service = KnowledgeItemService(get_mongodb_database())
         success, result = await service.update_item(source_id, updates)
 
         if success:
@@ -187,7 +183,7 @@ async def delete_knowledge_item(source_id: str):
         logger.debug("Creating SourceManagementService...")
         from ..services.source_management_service import SourceManagementService
 
-        source_service = SourceManagementService(get_supabase_client())
+        source_service = SourceManagementService(get_mongodb_database())
         logger.debug("Successfully created SourceManagementService")
 
         logger.debug("Calling delete_source function...")
@@ -232,13 +228,25 @@ async def get_knowledge_item_code_examples(source_id: str):
         safe_logfire_info(f"Fetching code examples for source_id: {source_id}")
 
         # Query code examples with full content for this specific source
-        supabase = get_supabase_client()
-        result = (
-            supabase.from_("archon_code_examples")
-            .select("id, source_id, content, summary, metadata")
-            .eq("source_id", source_id)
-            .execute()
+        db = get_mongodb_database()
+        code_examples_cursor = db.code_examples.find(
+            {"source_id": source_id},
+            {"_id": 1, "source_id": 1, "code": 1, "context": 1, "metadata": 1}
         )
+        code_examples = await code_examples_cursor.to_list(length=None)
+        
+        # Convert ObjectId to string and format for compatibility
+        result_data = []
+        for example in code_examples:
+            result_data.append({
+                "id": str(example["_id"]),
+                "source_id": example.get("source_id"),
+                "content": example.get("code", ""),  # Map 'code' to 'content'
+                "summary": example.get("context", "")[:200],  # Use context as summary
+                "metadata": example.get("metadata", {})
+            })
+        
+        result = type('MockResult', (), {"data": result_data})()
 
         code_examples = result.data if result.data else []
 
@@ -318,7 +326,7 @@ async def refresh_knowledge_item(source_id: str):
 
         # Use the same crawl orchestration as regular crawl
         crawl_service = CrawlOrchestrationService(
-            crawler=crawler, supabase_client=get_supabase_client()
+            crawler=crawler, mongodb_db=get_mongodb_database()
         )
         crawl_service.set_progress_id(progress_id)
 
@@ -443,8 +451,8 @@ async def _perform_crawl_with_progress(progress_id: str, request: KnowledgeItemR
                 await error_crawl_progress(progress_id, f"Failed to initialize crawler: {str(e)}")
                 return
 
-            supabase_client = get_supabase_client()
-            orchestration_service = CrawlOrchestrationService(crawler, supabase_client)
+            mongodb_db = get_mongodb_database()
+            orchestration_service = CrawlOrchestrationService(crawler, mongodb_db)
             orchestration_service.set_progress_id(progress_id)
 
             # Store the current task in active_crawl_tasks for cancellation support
@@ -629,8 +637,8 @@ async def _perform_upload_with_progress(
             await error_crawl_progress(progress_id, f"Failed to extract text: {str(e)}")
             return
 
-        # Use DocumentStorageService to handle the upload
-        doc_storage_service = DocumentStorageService(get_supabase_client())
+        # Use MongoDBDocumentStorageService to handle the upload
+        doc_storage_service = MongoDBDocumentStorageService(get_mongodb_database())
 
         # Generate source_id from filename
         source_id = f"file_{filename.replace(' ', '_').replace('.', '_')}_{int(time.time())}"
@@ -734,11 +742,25 @@ async def perform_rag_query(request: RagQueryRequest):
         raise HTTPException(status_code=422, detail="Query cannot be empty")
 
     try:
-        # Use RAGService for RAG query
-        search_service = RAGService(get_supabase_client())
-        success, result = await search_service.perform_rag_query(
-            query=request.query, source=request.source, match_count=request.match_count
+        # Use MongoDBRAGService for RAG query
+        search_service = MongoDBRAGService(get_mongodb_database())
+        
+        # Build filter metadata
+        filter_metadata = None
+        if request.source:
+            filter_metadata = {"source": request.source}
+            
+        result = await search_service.perform_rag_query(
+            query=request.query, 
+            filter_metadata=filter_metadata, 
+            match_count=request.match_count
         )
+        
+        # Check if there was an error in the result
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result)
+        
+        success = True
 
         if success:
             # Add success flag to match expected API response format
@@ -761,13 +783,16 @@ async def perform_rag_query(request: RagQueryRequest):
 async def search_code_examples(request: RagQueryRequest):
     """Search for code examples relevant to the query using dedicated code examples service."""
     try:
-        # Use RAGService for code examples search
-        search_service = RAGService(get_supabase_client())
-        success, result = await search_service.search_code_examples_service(
+        # Use MongoDBRAGService for code examples search
+        search_service = MongoDBRAGService(get_mongodb_database())
+        result = await search_service.search_code_examples(
             query=request.query,
-            source_id=request.source,  # This is Optional[str] which matches the method signature
+            source_id=request.source,
             match_count=request.match_count,
         )
+        
+        # MongoDB service returns results directly, not (success, result) tuple
+        success = True
 
         if success:
             # Add success flag and reformat to match expected API response format
@@ -804,8 +829,8 @@ async def search_code_examples_simple(request: RagQueryRequest):
 async def get_available_sources():
     """Get all available sources for RAG queries."""
     try:
-        # Use KnowledgeItemService
-        service = KnowledgeItemService(get_supabase_client())
+        # Use KnowledgeItemService with MongoDB
+        service = KnowledgeItemService(get_mongodb_database())
         result = await service.get_available_sources()
 
         # Parse result if it's a string
@@ -827,7 +852,7 @@ async def delete_source(source_id: str):
         # Use SourceManagementService directly
         from ..services.source_management_service import SourceManagementService
 
-        source_service = SourceManagementService(get_supabase_client())
+        source_service = SourceManagementService(get_mongodb_database())
 
         success, result_data = source_service.delete_source(source_id)
 
@@ -860,8 +885,8 @@ async def delete_source(source_id: str):
 async def get_database_metrics():
     """Get database metrics and statistics."""
     try:
-        # Use DatabaseMetricsService
-        service = DatabaseMetricsService(get_supabase_client())
+        # Use DatabaseMetricsService with MongoDB
+        service = DatabaseMetricsService(get_mongodb_database())
         metrics = await service.get_metrics()
         return metrics
     except Exception as e:

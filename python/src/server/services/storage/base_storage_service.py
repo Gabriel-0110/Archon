@@ -22,14 +22,14 @@ logger = get_logger(__name__)
 class BaseStorageService(ABC):
     """Base class for all storage services with common functionality."""
 
-    def __init__(self, supabase_client=None):
-        """Initialize with optional supabase client and threading service."""
+    def __init__(self, mongodb_db=None):
+        """Initialize with optional MongoDB database and threading service."""
         # Lazy import to avoid circular dependency
-        if supabase_client is None:
-            from ...utils import get_supabase_client
+        if mongodb_db is None:
+            from ...config.mongodb_config import get_mongodb_database
 
-            supabase_client = get_supabase_client()
-        self.supabase_client = supabase_client
+            mongodb_db = get_mongodb_database()
+        self.db = mongodb_db
 
         # Lazy import threading service
         from ...utils import get_utils_threading_service

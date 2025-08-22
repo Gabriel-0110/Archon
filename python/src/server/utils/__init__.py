@@ -19,7 +19,10 @@ import asyncio
 import os
 from typing import Optional
 
-from ..services.client_manager import get_supabase_client
+from ..services.client_manager import get_mongodb_client
+
+# For backward compatibility, alias MongoDB client as supabase_client  
+get_supabase_client = get_mongodb_client
 from ..services.embeddings import (
     create_embedding,
     create_embeddings_batch,

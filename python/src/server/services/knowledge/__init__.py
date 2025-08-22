@@ -1,13 +1,20 @@
 """
-Knowledge Services Package
+Knowledge Services Package - Now using MongoDB
 
 Contains services for knowledge management operations.
 """
-from .knowledge_item_service import KnowledgeItemService
-from .database_metrics_service import DatabaseMetricsService
-from .knowledge_item_service import KnowledgeItemService
+from .mongodb_knowledge_services import (
+    MongoDBKnowledgeItemService,
+    MongoDBDatabaseMetricsService,
+)
+
+# For backward compatibility
+KnowledgeItemService = MongoDBKnowledgeItemService
+DatabaseMetricsService = MongoDBDatabaseMetricsService
 
 __all__ = [
     'KnowledgeItemService',
-    'DatabaseMetricsService'
+    'DatabaseMetricsService',
+    'MongoDBKnowledgeItemService',
+    'MongoDBDatabaseMetricsService',
 ]

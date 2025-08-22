@@ -1,24 +1,25 @@
 """
 Search Services
 
-Consolidated search and RAG functionality with strategy pattern support.
+Consolidated search and RAG functionality using MongoDB.
 """
 
-# Main RAG service
-from .agentic_rag_strategy import AgenticRAGStrategy
+# MongoDB implementations  
+from .mongodb_rag_service import MongoDBRAGService
+from .mongodb_search_strategies import MongoDBBaseSearchStrategy, MongoDBHybridSearchStrategy
 
-# Strategy implementations
-from .base_search_strategy import BaseSearchStrategy
-from .hybrid_search_strategy import HybridSearchStrategy
-from .rag_service import RAGService
-from .reranking_strategy import RerankingStrategy
+# For backward compatibility, alias the MongoDB versions
+RAGService = MongoDBRAGService
+BaseSearchStrategy = MongoDBBaseSearchStrategy
+HybridSearchStrategy = MongoDBHybridSearchStrategy
 
 __all__ = [
     # Main service classes
-    "RAGService",
+    "RAGService",  # Backward compatibility alias
+    "MongoDBRAGService",
     # Strategy classes
-    "BaseSearchStrategy",
-    "HybridSearchStrategy",
-    "RerankingStrategy",
-    "AgenticRAGStrategy",
+    "BaseSearchStrategy",  # Backward compatibility alias
+    "HybridSearchStrategy",  # Backward compatibility alias
+    "MongoDBBaseSearchStrategy",
+    "MongoDBHybridSearchStrategy",
 ]

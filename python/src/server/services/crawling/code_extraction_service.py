@@ -11,10 +11,7 @@ from urllib.parse import urlparse
 
 from ...config.logfire_config import safe_logfire_error, safe_logfire_info
 from ...services.credential_service import credential_service
-from ..storage.code_storage_service import (
-    add_code_examples_to_supabase,
-    generate_code_summaries_batch,
-)
+from ..storage import add_code_examples_to_supabase, generate_code_summaries_batch
 
 
 class CodeExtractionService:
@@ -56,14 +53,22 @@ class CodeExtractionService:
         },
     }
 
-    def __init__(self, supabase_client):
+    def __init__(self, mongodb_db=None, supabase_client=None):
         """
         Initialize the code extraction service.
 
         Args:
-            supabase_client: The Supabase client for database operations
+            mongodb_db: The MongoDB database instance
+            supabase_client: [Deprecated] For backward compatibility
         """
-        self.supabase_client = supabase_client
+        # For backward compatibility, accept either parameter
+        if supabase_client is not None:
+            # If old supabase_client is passed, get MongoDB client instead
+            from ...config.mongodb_config import get_mongodb_database
+            self.mongodb_db = get_mongodb_database()
+        else:
+            from ...config.mongodb_config import get_mongodb_database
+            self.mongodb_db = mongodb_db or get_mongodb_database()
         self._settings_cache = {}
 
     async def _get_setting(self, key: str, default: Any) -> Any:
