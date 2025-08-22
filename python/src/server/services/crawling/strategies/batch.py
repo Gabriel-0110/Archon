@@ -4,10 +4,11 @@ Batch Crawling Strategy
 Handles batch crawling of multiple URLs in parallel.
 """
 
-import asyncio
-from typing import List, Dict, Any, Optional, Callable
+from collections.abc import Callable
+from typing import Any
 
-from crawl4ai import CrawlerRunConfig, CacheMode, MemoryAdaptiveDispatcher
+from crawl4ai import CacheMode, CrawlerRunConfig, MemoryAdaptiveDispatcher
+
 from ....config.logfire_config import get_logger
 from ...credential_service import credential_service
 
@@ -30,14 +31,14 @@ class BatchCrawlStrategy:
 
     async def crawl_batch_with_progress(
         self,
-        urls: List[str],
+        urls: list[str],
         transform_url_func: Callable[[str], str],
         is_documentation_site_func: Callable[[str], bool],
         max_concurrent: int = None,
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Callable | None = None,
         start_progress: int = 15,
         end_progress: int = 60,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Batch crawl multiple URLs in parallel with progress reporting.
 

@@ -81,11 +81,11 @@ async def add_documents_to_mongodb(
 
                     batch_urls = unique_urls[i : i + delete_batch_size]
                     await db.documents.delete_many({"url": {"$in": batch_urls}})
-                    
+
                     # Yield control to allow Socket.IO to process messages
                     if i + delete_batch_size < len(unique_urls):
                         await asyncio.sleep(0.05)
-                        
+
                 search_logger.info(
                     f"Deleted existing records for {len(unique_urls)} URLs in batches"
                 )
@@ -254,7 +254,7 @@ async def add_documents_to_mongodb(
             # Prepare batch data for MongoDB - only for successful embeddings
             batch_data = []
             current_time = datetime.utcnow()
-            
+
             # Map successful texts back to their original indices
             for j, (embedding, text) in enumerate(
                 zip(batch_embeddings, successful_texts, strict=False)
@@ -271,7 +271,7 @@ async def add_documents_to_mongodb(
                     continue
 
                 j = orig_idx  # Use original index for metadata lookup
-                
+
                 # Use source_id from metadata if available, otherwise extract from URL
                 if batch_metadatas[j].get("source_id"):
                     source_id = batch_metadatas[j]["source_id"]

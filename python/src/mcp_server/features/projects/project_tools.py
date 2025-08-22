@@ -8,7 +8,6 @@ No complex PRP examples - just straightforward project management.
 import asyncio
 import json
 import logging
-from typing import Any, Optional
 from urllib.parse import urljoin
 
 import httpx
@@ -34,7 +33,7 @@ def register_project_tools(mcp: FastMCP):
         ctx: Context,
         title: str,
         description: str = "",
-        github_repo: Optional[str] = None,
+        github_repo: str | None = None,
     ) -> str:
         """
         Create a new project with automatic AI assistance.
@@ -279,9 +278,9 @@ def register_project_tools(mcp: FastMCP):
     async def update_project(
         ctx: Context,
         project_id: str,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        github_repo: Optional[str] = None,
+        title: str | None = None,
+        description: str | None = None,
+        github_repo: str | None = None,
     ) -> str:
         """
         Update a project's basic information.

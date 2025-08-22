@@ -3,11 +3,7 @@ Environment configuration management for the MCP server.
 """
 
 import os
-import ipaddress
 from dataclasses import dataclass
-from urllib.parse import urlparse
-
-from jose import jwt
 
 
 class ConfigurationError(Exception):
@@ -20,9 +16,9 @@ class ConfigurationError(Exception):
 class EnvironmentConfig:
     """Configuration loaded from environment variables."""
 
+    port: int  # Required - no default
     mongodb_connection_string: str | None = None
     mongodb_database: str = "archon"
-    port: int  # Required - no default
     openai_api_key: str | None = None
     host: str = "0.0.0.0"
     transport: str = "sse"

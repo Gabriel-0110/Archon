@@ -5,7 +5,6 @@ Handles extraction and storage of code examples from documents using MongoDB.
 """
 
 import asyncio
-import json
 import os
 import re
 from collections.abc import Callable
@@ -18,8 +17,6 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ...config.logfire_config import search_logger
-from ..embeddings.contextual_embedding_service import generate_contextual_embeddings_batch
-from ..embeddings.embedding_service import create_embeddings_batch
 
 
 def _get_model_choice() -> str:
@@ -145,13 +142,13 @@ def _select_best_code_variant(similar_blocks: list[dict[str, Any]]) -> dict[str,
 
     # Find the block with the highest score
     best_block = max(similar_blocks, key=score_block)
-    
+
     search_logger.debug(
         f"Selected best variant from {len(similar_blocks)} similar blocks: "
         f"length={len(best_block.get('code', ''))}, "
         f"language={best_block.get('language', 'unknown')}"
     )
-    
+
     return best_block
 
 
@@ -208,7 +205,7 @@ async def add_code_examples_to_mongodb(
 
         # Deduplicate within batch and against existing data
         deduplicated_batch = []
-        
+
         for example in batch:
             try:
                 code = example.get("code", "").strip()
@@ -225,7 +222,7 @@ async def add_code_examples_to_mongodb(
                 for existing in similar_existing:
                     existing_code = existing.get("code", "")
                     similarity = _calculate_code_similarity(code, existing_code)
-                    
+
                     if similarity >= similarity_threshold:
                         is_duplicate = True
                         duplicates_removed += 1
@@ -263,7 +260,7 @@ async def add_code_examples_to_mongodb(
         if deduplicated_batch:
             current_time = datetime.utcnow()
             mongo_docs = []
-            
+
             for example in deduplicated_batch:
                 try:
                     # Extract source ID from URL if not provided
@@ -286,7 +283,7 @@ async def add_code_examples_to_mongodb(
                         "updated_at": current_time,
                     }
                     mongo_docs.append(doc)
-                    
+
                 except Exception as e:
                     search_logger.error(f"Error preparing code example document: {e}")
                     error_count += 1
@@ -297,12 +294,12 @@ async def add_code_examples_to_mongodb(
                     result = await db.code_examples.insert_many(mongo_docs)
                     batch_stored = len(result.inserted_ids)
                     stored_count += batch_stored
-                    
+
                     search_logger.info(
                         f"Stored {batch_stored} code examples in batch "
                         f"{batch_start//batch_size + 1}"
                     )
-                    
+
                 except Exception as e:
                     search_logger.error(f"Error storing batch to MongoDB: {e}")
                     error_count += len(mongo_docs)
@@ -347,7 +344,7 @@ async def get_code_examples_from_mongodb(
         List of code examples
     """
     query = {}
-    
+
     if source_id:
         query["source_id"] = source_id
     if language:
@@ -356,13 +353,13 @@ async def get_code_examples_from_mongodb(
     try:
         cursor = db.code_examples.find(query).limit(limit).sort("created_at", -1)
         examples = await cursor.to_list(length=None)
-        
+
         # Convert ObjectId to string for JSON serialization
         for example in examples:
             example["_id"] = str(example["_id"])
-            
+
         return examples
-        
+
     except Exception as e:
         search_logger.error(f"Error retrieving code examples: {e}")
         return []
@@ -385,10 +382,10 @@ async def delete_code_examples_by_source(
     try:
         result = await db.code_examples.delete_many({"source_id": source_id})
         deleted_count = result.deleted_count
-        
+
         search_logger.info(f"Deleted {deleted_count} code examples for source {source_id}")
         return deleted_count
-        
+
     except Exception as e:
         search_logger.error(f"Error deleting code examples for source {source_id}: {e}")
         return 0
@@ -423,19 +420,19 @@ async def generate_code_summaries_batch(
     # TODO: Implement LLM-based code summarization
     results = []
     total_blocks = len(code_blocks)
-    
+
     for i, code_block in enumerate(code_blocks):
         try:
             # Generate a simple summary based on code analysis
             code = code_block.get("code", "")
             language = code_block.get("language", "unknown")
-            
+
             # Simple heuristic-based summary
             lines = len(code.split('\n'))
             chars = len(code)
-            
+
             summary = f"Code block in {language} ({lines} lines, {chars} characters)"
-            
+
             # Look for function/class definitions
             if 'function' in code.lower():
                 summary += " - Contains function definitions"
@@ -443,18 +440,18 @@ async def generate_code_summaries_batch(
                 summary += " - Contains class definitions"
             if 'import' in code.lower() or 'from' in code.lower():
                 summary += " - Contains imports"
-                
+
             results.append({
                 "code": code,
                 "summary": summary,
                 "language": language,
             })
-            
+
             # Report progress
             if progress_callback:
                 progress = int(((i + 1) / total_blocks) * 100)
                 await progress_callback({"percentage": progress})
-                
+
         except Exception as e:
             search_logger.error(f"Error generating summary for code block: {e}")
             results.append({

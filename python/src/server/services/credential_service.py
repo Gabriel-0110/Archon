@@ -9,8 +9,8 @@ Importing the MongoDB implementation for backward compatibility.
 from .mongodb_credential_service import (
     CredentialItem,
     MongoDBCredentialService,
-    mongodb_credential_service,
     initialize_credentials,
+    mongodb_credential_service,
 )
 
 # For backward compatibility, alias the MongoDB version
@@ -19,7 +19,7 @@ credential_service = mongodb_credential_service
 
 __all__ = [
     "CredentialItem",
-    "CredentialService", 
+    "CredentialService",
     "MongoDBCredentialService",
     "credential_service",
     "mongodb_credential_service",

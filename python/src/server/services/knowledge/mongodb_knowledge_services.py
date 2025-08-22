@@ -9,7 +9,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ...config.logfire_config import safe_logfire_error, safe_logfire_info
+from ...config.logfire_config import safe_logfire_error
 from ...config.mongodb_config import get_mongodb_database
 
 
@@ -56,14 +56,14 @@ class MongoDBKnowledgeItemService:
 
             # Calculate skip and limit
             skip = (page - 1) * per_page
-            
+
             # Get total count
             total_count = await self.db.sources.count_documents(query)
-            
+
             # Get items with pagination
             cursor = self.db.sources.find(query).sort("updated_at", -1).skip(skip).limit(per_page)
             sources = await cursor.to_list(length=None)
-            
+
             # Convert ObjectId to string and format response
             items = []
             for source in sources:
@@ -123,7 +123,7 @@ class MongoDBKnowledgeItemService:
             source = await self.db.sources.find_one({"source_id": source_id})
             if not source:
                 return None
-                
+
             return {
                 "source_id": source.get("source_id"),
                 "title": source.get("title", source.get("source_id")),
@@ -136,7 +136,7 @@ class MongoDBKnowledgeItemService:
                 "summary": source.get("summary", ""),
                 "metadata": source.get("metadata", {}),
             }
-            
+
         except Exception as e:
             safe_logfire_error(f"Error getting knowledge item {source_id}: {e}")
             return None
@@ -146,18 +146,18 @@ class MongoDBKnowledgeItemService:
         try:
             # Add update timestamp
             updates["updated_at"] = datetime.utcnow()
-            
+
             result = await self.db.sources.update_one(
                 {"source_id": source_id},
                 {"$set": updates}
             )
-            
+
             if result.modified_count > 0:
                 updated_item = await self.get_item(source_id)
                 return True, updated_item or {}
             else:
                 return False, {"error": "Item not found or no changes made"}
-                
+
         except Exception as e:
             safe_logfire_error(f"Error updating knowledge item {source_id}: {e}")
             return False, {"error": str(e)}
@@ -178,10 +178,10 @@ class MongoDBKnowledgeItemService:
                 }},
                 {"$sort": {"updated_at": -1}}
             ]
-            
+
             cursor = self.db.sources.aggregate(pipeline)
             sources = await cursor.to_list(length=None)
-            
+
             result = []
             for source in sources:
                 result.append({
@@ -193,9 +193,9 @@ class MongoDBKnowledgeItemService:
                     "last_updated": source.get("updated_at"),
                     "tags": source.get("tags", []),
                 })
-            
+
             return result
-            
+
         except Exception as e:
             safe_logfire_error(f"Error getting available sources: {e}")
             return []
@@ -224,7 +224,7 @@ class MongoDBDatabaseMetricsService:
             code_examples_count = await self.db.code_examples.count_documents({})
             projects_count = await self.db.projects.count_documents({})
             tasks_count = await self.db.tasks.count_documents({})
-            
+
             # Get knowledge type breakdown
             pipeline = [
                 {"$group": {
@@ -234,11 +234,11 @@ class MongoDBDatabaseMetricsService:
             ]
             knowledge_types_cursor = self.db.sources.aggregate(pipeline)
             knowledge_types = await knowledge_types_cursor.to_list(length=None)
-            
+
             knowledge_type_breakdown = {}
             for kt in knowledge_types:
                 knowledge_type_breakdown[kt["_id"] or "unknown"] = kt["count"]
-            
+
             # Get total word count
             pipeline = [
                 {"$group": {
@@ -249,7 +249,7 @@ class MongoDBDatabaseMetricsService:
             word_count_cursor = self.db.sources.aggregate(pipeline)
             word_count_result = await word_count_cursor.to_list(length=1)
             total_words = word_count_result[0]["total_words"] if word_count_result else 0
-            
+
             return {
                 "collections": {
                     "sources": sources_count,
@@ -265,7 +265,7 @@ class MongoDBDatabaseMetricsService:
                 },
                 "database_type": "MongoDB",
             }
-            
+
         except Exception as e:
             safe_logfire_error(f"Error getting database metrics: {e}")
             return {

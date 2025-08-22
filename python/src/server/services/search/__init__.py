@@ -4,7 +4,7 @@ Search Services
 Consolidated search and RAG functionality using MongoDB.
 """
 
-# MongoDB implementations  
+# MongoDB implementations
 from .mongodb_rag_service import MongoDBRAGService
 from .mongodb_search_strategies import MongoDBBaseSearchStrategy, MongoDBHybridSearchStrategy
 

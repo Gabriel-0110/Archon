@@ -8,10 +8,11 @@ batch crawling, recursive crawling, and overall orchestration with progress trac
 
 import asyncio
 import uuid
-from typing import Dict, Any, List, Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional
 from urllib.parse import urlparse
 
-from ...config.logfire_config import safe_logfire_info, safe_logfire_error, get_logger
+from ...config.logfire_config import get_logger, safe_logfire_error, safe_logfire_info
 from ...utils import get_supabase_client
 
 # Lazy import socket.IO handlers to avoid circular dependencies
@@ -25,8 +26,10 @@ def _ensure_socketio_imports():
     global update_crawl_progress, complete_crawl_progress
     if update_crawl_progress is None:
         from ...api_routes.socketio_handlers import (
-            update_crawl_progress as _update,
             complete_crawl_progress as _complete,
+        )
+        from ...api_routes.socketio_handlers import (
+            update_crawl_progress as _update,
         )
 
         update_crawl_progress = _update
@@ -34,23 +37,22 @@ def _ensure_socketio_imports():
 
 
 # Import strategies
+# Import operations
+from .document_storage_operations import DocumentStorageOperations
+from .helpers.site_config import SiteConfig
+
+# Import helpers
+from .helpers.url_handler import URLHandler
+from .progress_mapper import ProgressMapper
 from .strategies.batch import BatchCrawlStrategy
 from .strategies.recursive import RecursiveCrawlStrategy
 from .strategies.single_page import SinglePageCrawlStrategy
 from .strategies.sitemap import SitemapCrawlStrategy
 
-# Import helpers
-from .helpers.url_handler import URLHandler
-from .helpers.site_config import SiteConfig
-
-# Import operations
-from .document_storage_operations import DocumentStorageOperations
-from .progress_mapper import ProgressMapper
-
 logger = get_logger(__name__)
 
 # Global registry to track active orchestration services for cancellation support
-_active_orchestrations: Dict[str, "CrawlingService"] = {}
+_active_orchestrations: dict[str, "CrawlingService"] = {}
 
 
 def get_active_orchestration(progress_id: str) -> Optional["CrawlingService"]:
@@ -158,7 +160,7 @@ class CrawlingService:
 
         return callback
 
-    async def _handle_progress_update(self, task_id: str, update: Dict[str, Any]) -> None:
+    async def _handle_progress_update(self, task_id: str, update: dict[str, Any]) -> None:
         """
         Handle progress updates from background task.
 
@@ -179,7 +181,7 @@ class CrawlingService:
             await update_crawl_progress(self.progress_id, self.progress_state)
 
     # Simple delegation methods for backward compatibility
-    async def crawl_single_page(self, url: str, retry_count: int = 3) -> Dict[str, Any]:
+    async def crawl_single_page(self, url: str, retry_count: int = 3) -> dict[str, Any]:
         """Crawl a single web page."""
         return await self.single_page_strategy.crawl_single_page(
             url,
@@ -190,7 +192,7 @@ class CrawlingService:
 
     async def crawl_markdown_file(
         self, url: str, progress_callback=None, start_progress: int = 10, end_progress: int = 20
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Crawl a .txt or markdown file."""
         return await self.single_page_strategy.crawl_markdown_file(
             url,
@@ -200,18 +202,18 @@ class CrawlingService:
             end_progress,
         )
 
-    def parse_sitemap(self, sitemap_url: str) -> List[str]:
+    def parse_sitemap(self, sitemap_url: str) -> list[str]:
         """Parse a sitemap and extract URLs."""
         return self.sitemap_strategy.parse_sitemap(sitemap_url)
 
     async def crawl_batch_with_progress(
         self,
-        urls: List[str],
+        urls: list[str],
         max_concurrent: int = None,
         progress_callback=None,
         start_progress: int = 15,
         end_progress: int = 60,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Batch crawl multiple URLs in parallel."""
         return await self.batch_strategy.crawl_batch_with_progress(
             urls,
@@ -225,13 +227,13 @@ class CrawlingService:
 
     async def crawl_recursive_with_progress(
         self,
-        start_urls: List[str],
+        start_urls: list[str],
         max_depth: int = 3,
         max_concurrent: int = None,
         progress_callback=None,
         start_progress: int = 10,
         end_progress: int = 60,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Recursively crawl internal links from start URLs."""
         return await self.recursive_strategy.crawl_recursive_with_progress(
             start_urls,
@@ -245,7 +247,7 @@ class CrawlingService:
         )
 
     # Orchestration methods
-    async def orchestrate_crawl(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    async def orchestrate_crawl(self, request: dict[str, Any]) -> dict[str, Any]:
         """
         Main orchestration method - non-blocking using asyncio.create_task.
 
@@ -276,7 +278,7 @@ class CrawlingService:
             "progress_id": self.progress_id,
         }
 
-    async def _async_orchestrate_crawl(self, request: Dict[str, Any], task_id: str):
+    async def _async_orchestrate_crawl(self, request: dict[str, Any], task_id: str):
         """
         Async orchestration that runs in the main event loop.
         """
@@ -356,7 +358,7 @@ class CrawlingService:
 
             # Process and store documents using document storage operations
             async def doc_storage_callback(
-                message: str, percentage: int, batch_info: Optional[dict] = None
+                message: str, percentage: int, batch_info: dict | None = None
             ):
                 if self.progress_id:
                     _ensure_socketio_imports()
@@ -487,7 +489,7 @@ class CrawlingService:
                     f"Unregistered orchestration service on error | progress_id={self.progress_id}"
                 )
 
-    async def _crawl_by_url_type(self, url: str, request: Dict[str, Any]) -> tuple:
+    async def _crawl_by_url_type(self, url: str, request: dict[str, Any]) -> tuple:
         """
         Detect URL type and perform appropriate crawling.
 
@@ -558,7 +560,7 @@ class CrawlingService:
             max_depth = request.get("max_depth", 1)
             # Let the strategy handle concurrency from settings
             # This will use CRAWL_MAX_CONCURRENT from database (default: 10)
-            
+
             crawl_results = await self.crawl_recursive_with_progress(
                 [url],
                 max_depth=max_depth,

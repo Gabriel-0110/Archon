@@ -147,24 +147,21 @@ class DocumentAgent(BaseAgent[DocumentDependencies, DocumentOperation]):
                 if not ctx.deps.project_id:
                     return "No project is currently selected. Please specify a project or create one first to manage documents."
 
-                supabase = get_supabase_client()
-                response = (
-                    supabase.table("archon_projects")
-                    .select("docs")
-                    .eq("id", ctx.deps.project_id)
-                    .execute()
-                )
+                # Use MCP to list documents for the project
+                mcp_client = await get_mcp_client()
+                result_json = await mcp_client.manage_document(action="list", project_id=ctx.deps.project_id)
+                result = json.loads(result_json) if isinstance(result_json, str) else result_json
 
-                if not response.data:
-                    return "No project found with the given ID."
+                if not result.get("success"):
+                    return f"Error retrieving documents: {result.get('error', 'Unknown error')}"
 
-                docs = response.data[0].get("docs", [])
+                docs = result.get("documents", [])
                 if not docs:
                     return "No documents found in this project."
 
                 doc_list = []
                 for doc in docs:
-                    doc_type = doc.get("document_type", "unknown")
+                    doc_type = doc.get("document_type", "unknown") or doc.get("type", "unknown")
                     title = doc.get("title", "Untitled")
                     doc_list.append(f"- {title} ({doc_type})")
 
@@ -178,18 +175,15 @@ class DocumentAgent(BaseAgent[DocumentDependencies, DocumentOperation]):
         async def get_document(ctx: RunContext[DocumentDependencies], document_title: str) -> str:
             """Get the content of a specific document by title."""
             try:
-                supabase = get_supabase_client()
-                response = (
-                    supabase.table("archon_projects")
-                    .select("docs")
-                    .eq("id", ctx.deps.project_id)
-                    .execute()
-                )
+                # List documents via MCP and find by title
+                mcp_client = await get_mcp_client()
+                list_json = await mcp_client.manage_document(action="list", project_id=ctx.deps.project_id)
+                list_result = json.loads(list_json) if isinstance(list_json, str) else list_json
 
-                if not response.data:
-                    return "No project found."
+                if not list_result.get("success"):
+                    return f"Failed to list documents: {list_result.get('error', 'Unknown error')}"
 
-                docs = response.data[0].get("docs", [])
+                docs = list_result.get("documents", [])
                 matching_docs = [
                     doc for doc in docs if document_title.lower() in doc.get("title", "").lower()
                 ]
@@ -198,7 +192,20 @@ class DocumentAgent(BaseAgent[DocumentDependencies, DocumentOperation]):
                     available_docs = [doc.get("title", "Untitled") for doc in docs[:5]]
                     return f"No document found matching '{document_title}'. Available documents: {', '.join(available_docs)}"
 
-                doc = matching_docs[0]
+                # Fetch full document details by ID via MCP
+                doc_meta = matching_docs[0]
+                doc_id = doc_meta.get("id") or doc_meta.get("doc_id")
+                if not doc_id:
+                    return "Document found by title but missing ID."
+
+                get_json = await mcp_client.manage_document(
+                    action="get", project_id=ctx.deps.project_id, doc_id=doc_id
+                )
+                get_result = json.loads(get_json) if isinstance(get_json, str) else get_json
+                if not get_result.get("success"):
+                    return f"Failed to load document details: {get_result.get('error', 'Unknown error')}"
+
+                doc = get_result.get("document", {})
                 content = doc.get("content", {})
 
                 # Format content for display
@@ -725,7 +732,7 @@ class DocumentAgent(BaseAgent[DocumentDependencies, DocumentOperation]):
                 self._create_block("bulleted_list", "Frontend: React, TypeScript, Tailwind CSS")
             )
             blocks.append(self._create_block("bulleted_list", "Backend: FastAPI, Python"))
-            blocks.append(self._create_block("bulleted_list", "Database: Supabase (PostgreSQL)"))
+            blocks.append(self._create_block("bulleted_list", "Database: MongoDB"))
             blocks.append(
                 self._create_block("bulleted_list", "Infrastructure: Docker, Cloud deployment")
             )

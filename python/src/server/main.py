@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Import Socket.IO handlers to ensure they're registered
 from .api_routes.agent_chat_api import router as agent_chat_router
 from .api_routes.bug_report_api import router as bug_report_router
 from .api_routes.coverage_api import router as coverage_router
@@ -26,9 +27,6 @@ from .api_routes.internal_api import router as internal_router
 from .api_routes.knowledge_api import router as knowledge_router
 from .api_routes.mcp_api import router as mcp_router
 from .api_routes.projects_api import router as projects_router
-
-# Import Socket.IO handlers to ensure they're registered
-from .api_routes import socketio_handlers  # This registers all Socket.IO event handlers
 
 # Import modular API routers
 from .api_routes.settings_api import router as settings_router

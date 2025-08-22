@@ -19,12 +19,12 @@ async def get_mongodb_client() -> AsyncIOMotorDatabase:
     """
     try:
         db = get_mongodb_database()
-        
+
         # Test connection
         connection_ok = await test_mongodb_connection()
         if not connection_ok:
             raise ConnectionError("Failed to connect to MongoDB")
-        
+
         search_logger.info("MongoDB client initialized successfully")
         return db
     except Exception as e:

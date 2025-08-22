@@ -48,7 +48,7 @@ class MongoDBDocumentStorageService(BaseStorageService):
             Tuple of (success, result_dict)
         """
         logger.info(f"Document upload starting: {filename} as {knowledge_type} knowledge")
-        
+
         with safe_span(
             "upload_document",
             filename=filename,
@@ -310,7 +310,7 @@ class MongoDBDocumentStorageService(BaseStorageService):
                 return True, {"code_examples_stored": 0}
 
             current_time = datetime.utcnow()
-            
+
             # Prepare code examples for MongoDB
             mongo_examples = []
             for example in code_examples:
@@ -331,9 +331,9 @@ class MongoDBDocumentStorageService(BaseStorageService):
 
             # Insert code examples
             result = await self.db.code_examples.insert_many(mongo_examples)
-            
+
             logger.info(f"Stored {len(result.inserted_ids)} code examples")
-            
+
             return True, {"code_examples_stored": len(result.inserted_ids)}
 
         except Exception as e:

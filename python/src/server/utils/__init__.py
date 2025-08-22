@@ -19,10 +19,14 @@ import asyncio
 import os
 from typing import Optional
 
+from ..db.supabase_compat import SupabaseCompat
 from ..services.client_manager import get_mongodb_client
 
-# For backward compatibility, alias MongoDB client as supabase_client  
-get_supabase_client = get_mongodb_client
+# For backward compatibility, return a Supabase-compatible wrapper over MongoDB
+# Note: Prefer using MongoDB-native services directly in new code.
+
+def get_supabase_client():
+    return SupabaseCompat()
 from ..services.embeddings import (
     create_embedding,
     create_embeddings_batch,

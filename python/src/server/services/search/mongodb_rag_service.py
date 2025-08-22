@@ -288,24 +288,24 @@ class MongoDBRAGService:
                 }},
                 {"$sort": {"latest_update": -1}}
             ]
-            
+
             sources_cursor = self.db.documents.aggregate(pipeline)
             sources = await sources_cursor.to_list(length=None)
-            
+
             # Get additional source information from sources collection
             sources_info = []
             for source in sources:
                 source_id = source["_id"]
-                
+
                 # Get detailed source info
                 source_doc = await self.db.sources.find_one({"source_id": source_id})
-                
+
                 source_info = {
                     "source_id": source_id,
                     "document_count": source["count"],
                     "last_updated": source["latest_update"],
                 }
-                
+
                 if source_doc:
                     source_info.update({
                         "title": source_doc.get("title", source_id),
@@ -315,11 +315,11 @@ class MongoDBRAGService:
                         "tags": source_doc.get("tags", []),
                         "word_count": source_doc.get("word_count", 0),
                     })
-                
+
                 sources_info.append(source_info)
-            
+
             return sources_info
-            
+
         except Exception as e:
             logger.error(f"Error getting available sources: {e}")
             return []

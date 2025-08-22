@@ -9,7 +9,6 @@ import math
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import IndexModel
 
 from ...config.logfire_config import get_logger, safe_span
 
@@ -36,13 +35,13 @@ class MongoDBBaseSearchStrategy:
         """
         try:
             collection = self.db[collection_name]
-            
+
             # Check if vector search index exists
             indexes = await collection.list_indexes().to_list(length=None)
             vector_index_exists = any(
                 idx.get("name") == "vector_index" for idx in indexes
             )
-            
+
             if not vector_index_exists:
                 # Create vector search index (Atlas Vector Search)
                 # Note: This is specific to MongoDB Atlas
@@ -58,13 +57,13 @@ class MongoDBBaseSearchStrategy:
                         }
                     }
                 }
-                
+
                 logger.info(f"Vector search index would be created for {collection_name}")
                 logger.warning(
                     "MongoDB Atlas Vector Search index creation requires Atlas cluster. "
                     "For self-hosted MongoDB, implement cosine similarity in aggregation pipeline."
                 )
-                
+
         except Exception as e:
             logger.warning(f"Could not ensure vector search index: {e}")
 
@@ -76,20 +75,20 @@ class MongoDBBaseSearchStrategy:
         """
         try:
             # Calculate dot product
-            dot_product = sum(a * b for a, b in zip(vec1, vec2))
-            
+            dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
+
             # Calculate magnitudes
             magnitude1 = math.sqrt(sum(a * a for a in vec1))
             magnitude2 = math.sqrt(sum(a * a for a in vec2))
-            
+
             # Avoid division by zero
             if magnitude1 == 0 or magnitude2 == 0:
                 return 0.0
-                
+
             # Calculate cosine similarity
             similarity = dot_product / (magnitude1 * magnitude2)
             return similarity
-            
+
         except Exception as e:
             logger.error(f"Error calculating cosine similarity: {e}")
             return 0.0
@@ -116,7 +115,7 @@ class MongoDBBaseSearchStrategy:
         with safe_span("mongodb_vector_search", collection=collection_name, match_count=match_count) as span:
             try:
                 collection = self.db[collection_name]
-                
+
                 # Try Atlas Vector Search first
                 try:
                     # MongoDB Atlas Vector Search
@@ -136,26 +135,26 @@ class MongoDBBaseSearchStrategy:
                             }
                         }
                     ]
-                    
+
                     # Add metadata filters if provided
                     if filter_metadata:
                         match_stage = {"$match": {}}
-                        
+
                         if "source" in filter_metadata:
                             match_stage["$match"]["source_id"] = filter_metadata["source"]
-                        
+
                         # Add other metadata filters
                         for key, value in filter_metadata.items():
                             if key != "source":
                                 match_stage["$match"][f"metadata.{key}"] = value
-                        
+
                         if match_stage["$match"]:
                             pipeline.append(match_stage)
-                    
+
                     # Execute Atlas Vector Search
                     cursor = collection.aggregate(pipeline)
                     results = await cursor.to_list(length=None)
-                    
+
                     # Filter by similarity threshold
                     filtered_results = []
                     for result in results:
@@ -164,32 +163,32 @@ class MongoDBBaseSearchStrategy:
                             # Convert ObjectId to string
                             result["_id"] = str(result["_id"])
                             filtered_results.append(result)
-                    
+
                     span.set_attribute("search_method", "atlas_vector_search")
                     span.set_attribute("results_found", len(filtered_results))
-                    
+
                     return filtered_results
-                    
+
                 except Exception as atlas_error:
                     logger.warning(f"Atlas Vector Search failed, falling back to cosine similarity: {atlas_error}")
-                    
+
                     # Fallback: Manual cosine similarity calculation
                     # This works with self-hosted MongoDB but is less efficient
-                    
+
                     # Build match criteria
                     match_criteria = {}
                     if filter_metadata:
                         if "source" in filter_metadata:
                             match_criteria["source_id"] = filter_metadata["source"]
-                        
+
                         for key, value in filter_metadata.items():
                             if key != "source":
                                 match_criteria[f"metadata.{key}"] = value
-                    
+
                     # Get all documents (with limit for performance)
                     cursor = collection.find(match_criteria).limit(match_count * 50)
                     documents = await cursor.to_list(length=None)
-                    
+
                     # Calculate similarities manually
                     results_with_similarity = []
                     for doc in documents:
@@ -200,14 +199,14 @@ class MongoDBBaseSearchStrategy:
                                 doc["similarity"] = similarity
                                 doc["_id"] = str(doc["_id"])
                                 results_with_similarity.append(doc)
-                    
+
                     # Sort by similarity and limit results
                     results_with_similarity.sort(key=lambda x: x["similarity"], reverse=True)
                     filtered_results = results_with_similarity[:match_count]
-                    
+
                     span.set_attribute("search_method", "manual_cosine_similarity")
                     span.set_attribute("results_found", len(filtered_results))
-                    
+
                     return filtered_results
 
             except Exception as e:
@@ -270,25 +269,25 @@ class MongoDBHybridSearchStrategy(MongoDBBaseSearchStrategy):
                     match_count=match_count * 2,  # Get more for combining
                     filter_metadata=filter_metadata,
                 )
-                
+
                 # Get text search results
                 text_results = await self._text_search(
                     query=query,
                     match_count=match_count * 2,
                     filter_metadata=filter_metadata,
                 )
-                
+
                 # Combine and rerank results
                 combined_results = self._combine_search_results(
                     vector_results, text_results, match_count
                 )
-                
+
                 span.set_attribute("vector_results", len(vector_results))
                 span.set_attribute("text_results", len(text_results))
                 span.set_attribute("combined_results", len(combined_results))
-                
+
                 return combined_results
-                
+
             except Exception as e:
                 logger.error(f"Hybrid search failed: {e}")
                 span.set_attribute("error", str(e))
@@ -315,40 +314,40 @@ class MongoDBHybridSearchStrategy(MongoDBBaseSearchStrategy):
         """
         try:
             collection = self.db[collection_name]
-            
+
             # Ensure text index exists
             try:
                 await collection.create_index([("content", "text"), ("metadata", "text")])
             except Exception:
                 pass  # Index might already exist
-            
+
             # Build search criteria
             search_criteria = {"$text": {"$search": query}}
-            
+
             # Add metadata filters
             if filter_metadata:
                 if "source" in filter_metadata:
                     search_criteria["source_id"] = filter_metadata["source"]
-                
+
                 for key, value in filter_metadata.items():
                     if key != "source":
                         search_criteria[f"metadata.{key}"] = value
-            
+
             # Execute text search
             cursor = collection.find(
                 search_criteria,
                 {"score": {"$meta": "textScore"}}
             ).sort([("score", {"$meta": "textScore"})]).limit(match_count)
-            
+
             results = await cursor.to_list(length=None)
-            
+
             # Convert ObjectId to string and add text similarity
             for result in results:
                 result["_id"] = str(result["_id"])
                 result["text_similarity"] = result.get("score", 0.0)
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Text search failed: {e}")
             return []
@@ -372,14 +371,14 @@ class MongoDBHybridSearchStrategy(MongoDBBaseSearchStrategy):
         """
         # Create a map to combine results by document ID
         result_map = {}
-        
+
         # Add vector results
         for result in vector_results:
             doc_id = result["_id"]
             result_map[doc_id] = result.copy()
             result_map[doc_id]["vector_similarity"] = result.get("similarity", 0.0)
             result_map[doc_id]["text_similarity"] = 0.0
-        
+
         # Add text results
         for result in text_results:
             doc_id = result["_id"]
@@ -391,18 +390,18 @@ class MongoDBHybridSearchStrategy(MongoDBBaseSearchStrategy):
                 result_map[doc_id] = result.copy()
                 result_map[doc_id]["vector_similarity"] = 0.0
                 result_map[doc_id]["text_similarity"] = result.get("text_similarity", 0.0)
-        
+
         # Calculate combined scores
         for doc_id, result in result_map.items():
             vector_score = result.get("vector_similarity", 0.0)
             text_score = result.get("text_similarity", 0.0)
-            
+
             # Weighted combination (70% vector, 30% text)
             combined_score = (0.7 * vector_score) + (0.3 * min(text_score / 10.0, 1.0))
             result["similarity"] = combined_score
-        
+
         # Sort by combined score and return top results
         combined_results = list(result_map.values())
         combined_results.sort(key=lambda x: x.get("similarity", 0.0), reverse=True)
-        
+
         return combined_results[:match_count]

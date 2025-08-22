@@ -11,7 +11,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..config.logfire_config import get_logger, search_logger
+from ..config.logfire_config import get_logger
 from .client_manager import get_mongodb_client
 
 logger = get_logger(__name__)
@@ -72,13 +72,13 @@ def extract_source_summary(
         try:
             response = llm_client.complete(prompt, max_tokens=100)
             summary = response.text.strip()
-            
+
             # Ensure summary is within max_length
             if len(summary) > max_length:
                 summary = summary[:max_length-3] + "..."
-                
+
             return summary
-            
+
         except Exception as e:
             logger.warning(f"Failed to generate LLM summary for {source_id}: {e}")
             # Fallback to simple truncation
@@ -108,10 +108,10 @@ def generate_source_title_and_metadata(content: str, source_id: str, provider: s
     try:
         # Extract title from content (first meaningful line)
         lines = [line.strip() for line in content.split('\n') if line.strip()]
-        
+
         # Look for title patterns
         title = source_id  # fallback
-        
+
         for line in lines[:10]:  # Check first 10 lines
             # Look for markdown headers
             if line.startswith('# '):
@@ -132,11 +132,11 @@ def generate_source_title_and_metadata(content: str, source_id: str, provider: s
         # Generate metadata
         word_count = len(content.split()) if content else 0
         char_count = len(content) if content else 0
-        
+
         # Extract basic content stats
         has_code = '```' in content or '<code>' in content.lower()
         has_links = 'http' in content.lower()
-        
+
         metadata = {
             'title': title[:200],  # Limit title length
             'word_count': word_count,
@@ -145,9 +145,9 @@ def generate_source_title_and_metadata(content: str, source_id: str, provider: s
             'has_links': has_links,
             'content_type': 'documentation' if has_code else 'general',
         }
-        
+
         return metadata
-        
+
     except Exception as e:
         logger.error(f"Error generating title/metadata for {source_id}: {e}")
         return {
@@ -187,9 +187,9 @@ async def update_source_info(
     try:
         # Generate title and metadata from content
         title_meta = generate_source_title_and_metadata(preview_content, source_id)
-        
+
         current_time = datetime.utcnow()
-        
+
         # Create source document
         source_doc = {
             'source_id': source_id,
@@ -207,7 +207,7 @@ async def update_source_info(
             },
             'updated_at': current_time,
         }
-        
+
         # Upsert source document
         result = await db.sources.update_one(
             {'source_id': source_id},
@@ -217,10 +217,10 @@ async def update_source_info(
             },
             upsert=True
         )
-        
+
         logger.info(f"Updated source info for {source_id}")
         return True
-        
+
     except Exception as e:
         logger.error(f"Failed to update source info for {source_id}: {e}")
         return False
@@ -252,16 +252,16 @@ class MongoDBSourceManagementService:
             query = {}
             if knowledge_type:
                 query['knowledge_type'] = knowledge_type
-            
+
             cursor = self.db.sources.find(query).sort('updated_at', -1).limit(limit)
             sources = await cursor.to_list(length=None)
-            
+
             # Convert ObjectIds to strings
             for source in sources:
                 source['_id'] = str(source['_id'])
-            
+
             return sources
-            
+
         except Exception as e:
             logger.error(f"Error listing sources: {e}")
             return []
@@ -275,18 +275,18 @@ class MongoDBSourceManagementService:
         """
         try:
             import asyncio
-            
+
             # Run the async delete operation
             result = asyncio.create_task(self._delete_source_async(source_id))
             loop = asyncio.get_event_loop()
-            
+
             if loop.is_running():
                 # If we're already in an async context, we need to handle this differently
                 # For now, return a placeholder result
                 return True, {"message": f"Source {source_id} deletion initiated"}
             else:
                 return loop.run_until_complete(result)
-                
+
         except Exception as e:
             logger.error(f"Error deleting source {source_id}: {e}")
             return False, {"error": str(e)}
@@ -296,26 +296,26 @@ class MongoDBSourceManagementService:
         try:
             # Delete documents
             doc_result = await self.db.documents.delete_many({'source_id': source_id})
-            
+
             # Delete code examples
             code_result = await self.db.code_examples.delete_many({'source_id': source_id})
-            
+
             # Delete source metadata
             source_result = await self.db.sources.delete_one({'source_id': source_id})
-            
+
             deleted_counts = {
                 'documents': doc_result.deleted_count,
                 'code_examples': code_result.deleted_count,
                 'source_metadata': source_result.deleted_count,
             }
-            
+
             logger.info(f"Deleted source {source_id}: {deleted_counts}")
-            
+
             return True, {
                 "message": f"Successfully deleted source {source_id}",
                 "deleted_counts": deleted_counts
             }
-            
+
         except Exception as e:
             logger.error(f"Error in async delete for {source_id}: {e}")
             return False, {"error": str(e)}
@@ -339,19 +339,19 @@ class MongoDBSourceManagementService:
                 updates['knowledge_type'] = knowledge_type
             if tags is not None:
                 updates['tags'] = tags
-            
+
             if not updates:
                 return True
-                
+
             updates['updated_at'] = datetime.utcnow()
-            
+
             result = await self.db.sources.update_one(
                 {'source_id': source_id},
                 {'$set': updates}
             )
-            
+
             return result.modified_count > 0
-            
+
         except Exception as e:
             logger.error(f"Error updating source metadata for {source_id}: {e}")
             return False
@@ -376,7 +376,7 @@ async def update_source_info_compat(
     if hasattr(client_or_db, 'sources'):
         # It's a MongoDB database
         return await update_source_info(
-            client_or_db, source_id, summary, word_count, 
+            client_or_db, source_id, summary, word_count,
             preview_content, knowledge_type, tags
         )
     else:

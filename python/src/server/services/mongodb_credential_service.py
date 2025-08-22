@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from bson import ObjectId
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -91,7 +90,7 @@ class MongoDBCredentialService:
     async def _ensure_credentials_collection(self):
         """Ensure credentials collection exists with proper indexes."""
         db = self._get_mongodb_db()
-        
+
         # Create unique index on key
         await db.credentials.create_index("key", unique=True)
         await db.credentials.create_index("category")
@@ -101,14 +100,14 @@ class MongoDBCredentialService:
         try:
             await self._ensure_credentials_collection()
             db = self._get_mongodb_db()
-            
+
             cursor = db.credentials.find()
             credentials = await cursor.to_list(length=None)
-            
+
             self._cache = {}
             for cred in credentials:
                 key = cred["key"]
-                
+
                 if cred.get("is_encrypted", False):
                     # Store encrypted credentials with metadata
                     self._cache[key] = {
@@ -119,10 +118,10 @@ class MongoDBCredentialService:
                 else:
                     # Store plain text credentials directly
                     self._cache[key] = cred["value"]
-            
+
             self._cache_initialized = True
             logger.info(f"Loaded {len(self._cache)} credentials into cache")
-            
+
         except Exception as e:
             logger.error(f"Failed to load credentials cache: {e}")
             self._cache = {}
@@ -136,7 +135,7 @@ class MongoDBCredentialService:
         # Check cache first
         if key in self._cache:
             cached_value = self._cache[key]
-            
+
             if isinstance(cached_value, dict) and cached_value.get("is_encrypted"):
                 if decrypt:
                     try:
@@ -163,9 +162,9 @@ class MongoDBCredentialService:
         try:
             await self._ensure_credentials_collection()
             db = self._get_mongodb_db()
-            
+
             current_time = datetime.utcnow()
-            
+
             if encrypt:
                 encrypted_value = self._encrypt_value(value)
                 credential_doc = {
@@ -177,7 +176,7 @@ class MongoDBCredentialService:
                     "description": description,
                     "updated_at": current_time,
                 }
-                
+
                 # Update cache
                 self._cache[key] = {
                     "encrypted_value": encrypted_value,
@@ -194,7 +193,7 @@ class MongoDBCredentialService:
                     "description": description,
                     "updated_at": current_time,
                 }
-                
+
                 # Update cache
                 self._cache[key] = value
 
@@ -207,10 +206,10 @@ class MongoDBCredentialService:
                 },
                 upsert=True
             )
-            
+
             logger.info(f"Successfully stored credential: {key}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to store credential {key}: {e}")
             return False
@@ -219,16 +218,16 @@ class MongoDBCredentialService:
         """Delete a credential."""
         try:
             db = self._get_mongodb_db()
-            
+
             result = await db.credentials.delete_one({"key": key})
-            
+
             # Remove from cache
             if key in self._cache:
                 del self._cache[key]
-            
+
             logger.info(f"Deleted credential: {key}")
             return result.deleted_count > 0
-            
+
         except Exception as e:
             logger.error(f"Failed to delete credential {key}: {e}")
             return False
@@ -241,8 +240,8 @@ class MongoDBCredentialService:
         # Check if this is RAG settings and use cache
         if category == "rag_strategy":
             current_time = time.time()
-            if (self._rag_settings_cache is not None and 
-                self._rag_cache_timestamp is not None and 
+            if (self._rag_settings_cache is not None and
+                self._rag_cache_timestamp is not None and
                 current_time - self._rag_cache_timestamp < self._rag_cache_ttl):
                 return self._rag_settings_cache
 
@@ -250,11 +249,11 @@ class MongoDBCredentialService:
             db = self._get_mongodb_db()
             cursor = db.credentials.find({"category": category})
             credentials = await cursor.to_list(length=None)
-            
+
             result = {}
             for cred in credentials:
                 key = cred["key"]
-                
+
                 if cred.get("is_encrypted", False):
                     try:
                         encrypted_value = cred["encrypted_value"]
@@ -272,7 +271,7 @@ class MongoDBCredentialService:
                 self._rag_cache_timestamp = time.time()
 
             return result
-            
+
         except Exception as e:
             logger.error(f"Failed to get credentials for category {category}: {e}")
             return {}
@@ -283,7 +282,7 @@ class MongoDBCredentialService:
             db = self._get_mongodb_db()
             cursor = db.credentials.find()
             credentials = await cursor.to_list(length=None)
-            
+
             result = []
             for cred in credentials:
                 item = CredentialItem(
@@ -292,7 +291,7 @@ class MongoDBCredentialService:
                     category=cred.get("category"),
                     description=cred.get("description"),
                 )
-                
+
                 if include_values:
                     if cred.get("is_encrypted", False):
                         try:
@@ -304,11 +303,11 @@ class MongoDBCredentialService:
                             item.value = "[DECRYPTION_FAILED]"
                     else:
                         item.value = cred["value"]
-                
+
                 result.append(item)
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"Failed to list credentials: {e}")
             return []
@@ -317,15 +316,15 @@ class MongoDBCredentialService:
         """Validate OpenAI API key format."""
         if not api_key or not api_key.strip():
             return False, "API key cannot be empty"
-        
+
         api_key = api_key.strip()
-        
+
         if not api_key.startswith("sk-"):
             return False, "OpenAI API key must start with 'sk-'"
-        
+
         if len(api_key) < 20:
             return False, "API key appears to be too short"
-        
+
         # Check for common placeholder values
         placeholder_patterns = [
             r"^sk-[x]+$",
@@ -333,11 +332,11 @@ class MongoDBCredentialService:
             r"^sk-insert[_-]?key[_-]?here$",
             r"^sk-replace[_-]?with[_-]?your[_-]?key$",
         ]
-        
+
         for pattern in placeholder_patterns:
             if re.match(pattern, api_key, re.IGNORECASE):
                 return False, "Please replace the placeholder with your actual API key"
-        
+
         return True, "Valid format"
 
 

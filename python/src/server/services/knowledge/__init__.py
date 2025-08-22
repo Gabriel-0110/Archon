@@ -4,8 +4,8 @@ Knowledge Services Package - Now using MongoDB
 Contains services for knowledge management operations.
 """
 from .mongodb_knowledge_services import (
-    MongoDBKnowledgeItemService,
     MongoDBDatabaseMetricsService,
+    MongoDBKnowledgeItemService,
 )
 
 # For backward compatibility

@@ -10,6 +10,8 @@ from .mongodb_source_management_service import (
     MongoDBSourceManagementService,
     extract_source_summary,
     generate_source_title_and_metadata,
+)
+from .mongodb_source_management_service import (
     update_source_info_compat as update_source_info,
 )
 
@@ -18,7 +20,7 @@ SourceManagementService = MongoDBSourceManagementService
 
 __all__ = [
     "SourceManagementService",
-    "MongoDBSourceManagementService", 
+    "MongoDBSourceManagementService",
     "extract_source_summary",
     "generate_source_title_and_metadata",
     "update_source_info",

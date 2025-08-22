@@ -18,15 +18,15 @@ from datetime import datetime
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from ..config.mongodb_config import get_mongodb_database
-from ..services.storage.mongodb_storage_services import MongoDBDocumentStorageService
-from ..services.search.mongodb_rag_service import MongoDBRAGService
-from ..services.knowledge import KnowledgeItemService, DatabaseMetricsService
-from ..services.crawling import CrawlOrchestrationService
-from ..services.crawler_manager import get_crawler
-
 # Import unified logging
 from ..config.logfire_config import get_logger, safe_logfire_error, safe_logfire_info
+from ..config.mongodb_config import get_mongodb_database
+from ..services.crawler_manager import get_crawler
+from ..services.crawling import CrawlOrchestrationService
+from ..services.knowledge import DatabaseMetricsService, KnowledgeItemService
+from ..services.search.mongodb_rag_service import MongoDBRAGService
+from ..services.storage.mongodb_storage_services import MongoDBDocumentStorageService
+from ..utils import get_supabase_client
 from ..utils.document_processing import extract_text_from_document
 
 # Get logger for this module
@@ -234,7 +234,7 @@ async def get_knowledge_item_code_examples(source_id: str):
             {"_id": 1, "source_id": 1, "code": 1, "context": 1, "metadata": 1}
         )
         code_examples = await code_examples_cursor.to_list(length=None)
-        
+
         # Convert ObjectId to string and format for compatibility
         result_data = []
         for example in code_examples:
@@ -245,7 +245,7 @@ async def get_knowledge_item_code_examples(source_id: str):
                 "summary": example.get("context", "")[:200],  # Use context as summary
                 "metadata": example.get("metadata", {})
             })
-        
+
         result = type('MockResult', (), {"data": result_data})()
 
         code_examples = result.data if result.data else []
@@ -525,7 +525,7 @@ async def upload_document(
         safe_logfire_info(
             f"📋 UPLOAD: Starting document upload | filename={file.filename} | content_type={file.content_type} | knowledge_type={knowledge_type}"
         )
-        
+
         safe_logfire_info(
             f"Starting document upload | filename={file.filename} | content_type={file.content_type} | knowledge_type={knowledge_type}"
         )
@@ -744,22 +744,22 @@ async def perform_rag_query(request: RagQueryRequest):
     try:
         # Use MongoDBRAGService for RAG query
         search_service = MongoDBRAGService(get_mongodb_database())
-        
+
         # Build filter metadata
         filter_metadata = None
         if request.source:
             filter_metadata = {"source": request.source}
-            
+
         result = await search_service.perform_rag_query(
-            query=request.query, 
-            filter_metadata=filter_metadata, 
+            query=request.query,
+            filter_metadata=filter_metadata,
             match_count=request.match_count
         )
-        
+
         # Check if there was an error in the result
         if "error" in result:
             raise HTTPException(status_code=500, detail=result)
-        
+
         success = True
 
         if success:
@@ -790,7 +790,7 @@ async def search_code_examples(request: RagQueryRequest):
             source_id=request.source,
             match_count=request.match_count,
         )
-        
+
         # MongoDB service returns results directly, not (success, result) tuple
         success = True
 
@@ -932,7 +932,7 @@ async def stop_crawl_task(progress_id: str):
     """Stop a running crawl task."""
     try:
         from ..services.crawling import get_active_orchestration, unregister_orchestration
-        
+
         # Emit stopping status immediately
         await sio.emit(
             "crawl:stopping",
